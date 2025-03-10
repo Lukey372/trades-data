@@ -1,6 +1,16 @@
 import express from 'express';
 import WebSocket, { RawData } from 'ws';
 
+interface TradeData {
+  user: string;
+  sol_amount: number;
+  name: string;
+  is_buy: boolean;
+  timestamp: number;
+  mint?: string;
+  usd_market_cap?: number;
+}
+
 interface TradeEvent {
   user: string;
   sol_amount: string;
@@ -45,7 +55,7 @@ const USER_MAP: { [address: string]: string } = {
 const buy_events: TradeEvent[] = [];
 const sell_events: TradeEvent[] = [];
 
-// WebSocket listener function
+// WebSocket listener function that mimics the Python script logic.
 function pumpFunListener(): void {
   const uri = "wss://frontend-api-v2.pump.fun/socket.io/?EIO=4&transport=websocket";
 
@@ -53,54 +63,56 @@ function pumpFunListener(): void {
     const ws = new WebSocket(uri);
 
     ws.on('open', () => {
-      console.log("Connected to pump.fun feed");
+      console.log("Connected");
+      // Send the "40" message for authorization.
       ws.send("40");
     });
 
     ws.on('message', (data: RawData) => {
       const message: string = typeof data === 'string' ? data : data.toString();
+
+      // Respond to pings.
       if (message === "2") {
         ws.send("3");
         return;
       }
+
+      // Process messages that start with "42"
       if (message.startsWith("42")) {
         try {
           const payload = JSON.parse(message.substring(2));
           if (payload[0] === "tradeCreated") {
-            const tradeData = payload[1];
-            const userAddress: string = tradeData.user;
-            if (USER_MAP[userAddress]) {
-              const friendlyUser = USER_MAP[userAddress];
-              const solAmount = tradeData.sol_amount / 1_000_000_000;
-              const coinName = tradeData.name;
-              const isBuy = tradeData.is_buy;
-              const ts = new Date(tradeData.timestamp * 1000);
-              const event: TradeEvent = {
-                user: friendlyUser,
-                sol_amount: solAmount.toFixed(4),
-                name: coinName,
-                timestamp: ts.toISOString().replace('T', ' ').substring(0, 19),
-                mint: tradeData.mint || null,
-                usd_market_cap: tradeData.usd_market_cap || null,
-              };
+            const tradeData: TradeData = payload[1];
+            console.log(tradeData);
+            // Use friendly name if available; fallback to raw address.
+            const friendlyUser = USER_MAP[tradeData.user] || tradeData.user;
+            // Print the formatted trade information.
+            console.log(`User: ${tradeData.user} ${tradeData.is_buy ? 'Bought' : 'Sold'} ${tradeData.sol_amount / 1000000000} SOL worth of ${tradeData.name} at ${new Date(tradeData.timestamp * 1000).toLocaleString()}`);
+            
+            // Create a TradeEvent and store it.
+            const ts = new Date(tradeData.timestamp * 1000);
+            const event: TradeEvent = {
+              user: friendlyUser,
+              sol_amount: (tradeData.sol_amount / 1000000000).toFixed(4),
+              name: tradeData.name,
+              timestamp: ts.toISOString().replace('T', ' ').substring(0, 19),
+              mint: tradeData.mint || null,
+              usd_market_cap: tradeData.usd_market_cap || null,
+            };
 
-              if (isBuy) {
-                buy_events.unshift(event);
-                if (buy_events.length > 50) {
-                  buy_events.pop();
-                }
-              } else {
-                sell_events.unshift(event);
-                if (sell_events.length > 50) {
-                  sell_events.pop();
-                }
+            if (tradeData.is_buy) {
+              buy_events.unshift(event);
+              if (buy_events.length > 50) {
+                buy_events.pop();
               }
-              console.log(`[Trade] ${friendlyUser} ${isBuy ? 'bought' : 'sold'} ${solAmount.toFixed(4)} SOL of ${coinName}`);
             } else {
-              console.log(`Skipped trade from unknown address: ${userAddress}`);
+              sell_events.unshift(event);
+              if (sell_events.length > 50) {
+                sell_events.pop();
+              }
             }
           } else {
-            console.log("Unknown event:", payload);
+            console.log("Unknown Response:", payload);
           }
         } catch (e) {
           console.log("Error parsing message:", e);
