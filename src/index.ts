@@ -1,5 +1,5 @@
 import express from 'express';
-import WebSocket from 'ws';
+import WebSocket, { RawData } from 'ws';
 
 interface TradeEvent {
   user: string;
@@ -49,7 +49,7 @@ const sell_events: TradeEvent[] = [];
 function pumpFunListener(): void {
   const uri = "wss://frontend-api-v2.pump.fun/socket.io/?EIO=4&transport=websocket";
 
-  function connect() {
+  function connect(): void {
     const ws = new WebSocket(uri);
 
     ws.on('open', () => {
@@ -58,8 +58,8 @@ function pumpFunListener(): void {
       ws.send("40");
     });
 
-    ws.on('message', (data) => {
-      const message = typeof data === 'string' ? data : data.toString();
+    ws.on('message', (data: RawData) => {
+      const message: string = typeof data === 'string' ? data : data.toString();
       if (message === "2") {
         ws.send("3");
         return;
@@ -69,7 +69,7 @@ function pumpFunListener(): void {
           const payload = JSON.parse(message.substring(2));
           if (payload[0] === "tradeCreated") {
             const tradeData = payload[1];
-            const userAddress = tradeData.user;
+            const userAddress: string = tradeData.user;
             if (USER_MAP[userAddress]) {
               const friendlyUser = USER_MAP[userAddress];
               const solAmount = tradeData.sol_amount / 1_000_000_000;
@@ -116,7 +116,7 @@ function pumpFunListener(): void {
       setTimeout(connect, 5000);
     });
 
-    ws.on('error', (err) => {
+    ws.on('error', (err: Error) => {
       console.log("WebSocket error:", err);
       ws.close();
     });
@@ -129,6 +129,7 @@ function pumpFunListener(): void {
 pumpFunListener();
 
 // Set up an Express server that exposes the trades as JSON.
+import express from 'express';
 const app = express();
 
 app.get('/api/trades', (req, res) => {
