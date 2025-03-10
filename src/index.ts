@@ -79,15 +79,6 @@ function pumpFunListener(): void {
         return;
       }
 
-      // Process messages that start with "42"
-      if (message.startsWith("42")) {
-        try {
-          const payload = JSON.parse(message.substring(2));
-          if (payload[0] === "tradeCreated") {
-            // Log the full raw payload for debugging
-            console.log("[RAW tradeCreated]:", payload[1]);
-            const tradeData: TradeData = payload[1];
-
             // Build a formatted log line (regardless of filtering)
             const localTime = new Date(tradeData.timestamp * 1000).toLocaleString();
             console.log(`User: ${tradeData.user} ${tradeData.is_buy ? 'Bought' : 'Sold'} ${tradeData.sol_amount / 1_000_000_000} SOL worth of ${tradeData.name} at ${localTime}`);
