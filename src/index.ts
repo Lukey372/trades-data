@@ -178,7 +178,6 @@ function pumpFunListener() {
 pumpFunListener();
 
 // Express server
-import express from 'express';
 const app = express();
 
 app.get('/api/trades', (req, res) => {
