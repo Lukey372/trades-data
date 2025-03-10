@@ -56,7 +56,7 @@ const USER_MAP: { [address: string]: string } = {
 const buy_events: TradeEvent[] = [];
 const sell_events: TradeEvent[] = [];
 
-// WebSocket listener function
+// WebSocket listener function based on the raw payload
 function pumpFunListener(): void {
   const uri = "wss://frontend-api-v2.pump.fun/socket.io/?EIO=4&transport=websocket";
 
@@ -83,22 +83,20 @@ function pumpFunListener(): void {
         try {
           const payload = JSON.parse(message.substring(2));
           if (payload[0] === "tradeCreated") {
-            // 1) Log the full raw payload for debugging
+            // Log the full raw payload for debugging
             console.log("[RAW tradeCreated]:", payload[1]);
-
             const tradeData: TradeData = payload[1];
 
-            // 2) Build a log line that always shows up, regardless of address
+            // Build a formatted log line (regardless of filtering)
             const localTime = new Date(tradeData.timestamp * 1000).toLocaleString();
             console.log(`User: ${tradeData.user} ${tradeData.is_buy ? 'Bought' : 'Sold'} ${tradeData.sol_amount / 1_000_000_000} SOL worth of ${tradeData.name} at ${localTime}`);
 
-            // 3) Only store in buy/sell arrays if address is in USER_MAP
+            // Only store the trade if the user is in USER_MAP.
             if (!USER_MAP[tradeData.user]) {
-              // No skipping log message; we just won't add to our arrays
               return;
             }
 
-            // Build the trade event object
+            // Build the trade event object.
             const ts = new Date(tradeData.timestamp * 1000);
             const event: TradeEvent = {
               user: USER_MAP[tradeData.user],
@@ -109,6 +107,7 @@ function pumpFunListener(): void {
               usd_market_cap: tradeData.usd_market_cap || null,
             };
 
+            // Categorize the trade based on is_buy.
             if (tradeData.is_buy) {
               buy_events.unshift(event);
               if (buy_events.length > 50) {
