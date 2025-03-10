@@ -12,14 +12,15 @@ interface TradeData {
 }
 
 interface TradeEvent {
-  user: string;
-  sol_amount: number;  // Store as a number to avoid repeated string parsing
+  user: string;       // raw address
+  sol_amount: number; // numeric SOL amount
   name: string;
-  timestamp: number;   // Keep raw timestamp for speed; format only if needed
+  timestamp: number;  // numeric timestamp
   mint: string | null;
   usd_market_cap: number | null;
 }
 
+// Address → Friendly Name
 const USER_MAP: { [address: string]: string } = {
   "JDd3hy3gQn2V982mi1zqhNqUw1GfV2UL6g76STojCJPN": "West",
   "GwoFJFjUTUSWq2EwTz4P2Sznoq9XYLrf8t4q5kbTgZ1R": "Levis",
@@ -54,69 +55,65 @@ const USER_MAP: { [address: string]: string } = {
   "9yYya3F5EJoLnBNKW6z4bZvyQytMXzDcpU5D6yYr4jqL": "Loopier",
 };
 
-// We’ll store only the most recent trades. 
-// Using push + shift so we don’t do expensive unshift operations each time.
+// We’ll store only the most recent trades in memory.
 const buy_events: TradeEvent[] = [];
 const sell_events: TradeEvent[] = [];
 
-// Maximum number of trades to keep in memory per array.
 const MAX_TRADES = 50;
 
-// If you want minimal logs, set this to false or use a separate debug environment variable.
-const ENABLE_LOGS = false;
+// Set this to true to enable console logs.
+const ENABLE_LOGS = true;
 
-function pumpFunListener(): void {
-  const uri = "wss://frontend-api-v2.pump.fun/socket.io/?EIO=4&transport=websocket";
-
-  function connect(): void {
+/**
+ * Connect to a single WebSocket endpoint, subscribe to events, and store trades.
+ */
+function connectToSocket(uri: string) {
+  function connect() {
     const ws = new WebSocket(uri);
 
     ws.on('open', () => {
-      if (ENABLE_LOGS) console.log("Connected");
-      // Send the "40" message for Socket.IO authorization.
+      if (ENABLE_LOGS) console.log(`[OPEN] Connected to ${uri}`);
+      // Send "40" for Socket.IO authorization
       ws.send("40");
     });
 
     ws.on('message', (data: RawData) => {
       const message = typeof data === 'string' ? data : data.toString();
 
-      // Respond to pings
+      // Socket.IO heartbeat
       if (message === "2") {
         ws.send("3");
         return;
       }
 
-      // Process messages that start with "42"
+      // Check for "42" messages
       if (message.startsWith("42")) {
-        // Attempt to parse the payload
         try {
           const payload = JSON.parse(message.substring(2));
           if (payload[0] === "tradeCreated") {
             const tradeData: TradeData = payload[1];
 
-            // Check if the user is recognized in our map
+            // If user not in map, skip
             if (!USER_MAP[tradeData.user]) {
-              // If logs are enabled, you could do a minimal log or skip entirely:
               if (ENABLE_LOGS) {
                 console.log(`[SKIP] Unknown user: ${tradeData.user}`);
               }
               return;
             }
 
-            // Convert the trade into our simplified structure
+            // Build trade event
             const event: TradeEvent = {
-              user: tradeData.user,  // keep raw address (friendly name can be used in UI)
+              user: tradeData.user,
               sol_amount: tradeData.sol_amount / 1_000_000_000,
               name: tradeData.name,
-              timestamp: tradeData.timestamp, // keep numeric
+              timestamp: tradeData.timestamp,
               mint: tradeData.mint || null,
               usd_market_cap: tradeData.usd_market_cap || null,
             };
 
-            // Insert into buy or sell array
+            // Insert into buy or sell
             if (tradeData.is_buy) {
               buy_events.push(event);
-              // If we exceed MAX_TRADES, remove oldest
               if (buy_events.length > MAX_TRADES) {
                 buy_events.shift();
               }
@@ -128,58 +125,34 @@ function pumpFunListener(): void {
             }
 
             if (ENABLE_LOGS) {
-              console.log(`[STORE] ${USER_MAP[tradeData.user]} ${tradeData.is_buy ? "BUY" : "SELL"}: ${event.sol_amount.toFixed(4)} SOL of ${event.name}`);
+              const userName = USER_MAP[tradeData.user];
+              console.log(
+                `[STORE] ${userName} ${tradeData.is_buy ? "BUY" : "SELL"}: ${
+                  (event.sol_amount).toFixed(4)
+                } SOL of ${event.name}`
+              );
             }
 
           } else if (ENABLE_LOGS) {
-            console.log("Unknown Response:", payload);
+            console.log(`[INFO] Unknown payload:`, payload);
           }
         } catch (err) {
           if (ENABLE_LOGS) {
-            console.log("Error parsing message:", err);
+            console.log("[ERROR] Parsing message:", err);
           }
         }
       } else if (ENABLE_LOGS) {
-        console.log("Unknown message:", message);
+        console.log("[INFO] Non-42 message:", message);
       }
     });
 
-    // On close, attempt to reconnect
     ws.on('close', () => {
       if (ENABLE_LOGS) {
-        console.log("WebSocket closed. Reconnecting in 5s...");
+        console.log(`[CLOSE] Disconnected from ${uri}, reconnecting in 5s...`);
       }
       setTimeout(connect, 5000);
     });
 
-    // On error, close and reconnect
     ws.on('error', (err: Error) => {
       if (ENABLE_LOGS) {
-        console.log("WebSocket error:", err);
-      }
-      ws.close();
-    });
-  }
-
-  connect();
-}
-
-pumpFunListener();
-
-// Express server to serve the trades
-const app = express();
-
-// Return the last 20 trades from each array
-app.get('/api/trades', (req, res) => {
-  // If you need them in newest-first order, you can reverse or slice differently
-  // or let the front end handle ordering.
-  res.json({
-    buys: buy_events.slice(-20),
-    sells: sell_events.slice(-20),
-  });
-});
-
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`Web server running on port ${port}`);
-});
+        console.log(`[E
