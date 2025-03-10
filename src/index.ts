@@ -13,9 +13,9 @@ interface TradeData {
 
 interface TradeEvent {
   user: string;
-  sol_amount: string;
+  sol_amount: number;  // Store as a number to avoid repeated string parsing
   name: string;
-  timestamp: string;
+  timestamp: number;   // Keep raw timestamp for speed; format only if needed
   mint: string | null;
   usd_market_cap: number | null;
 }
@@ -54,10 +54,17 @@ const USER_MAP: { [address: string]: string } = {
   "9yYya3F5EJoLnBNKW6z4bZvyQytMXzDcpU5D6yYr4jqL": "Loopier",
 };
 
+// We’ll store only the most recent trades. 
+// Using push + shift so we don’t do expensive unshift operations each time.
 const buy_events: TradeEvent[] = [];
 const sell_events: TradeEvent[] = [];
 
-// WebSocket listener function based on the raw payload
+// Maximum number of trades to keep in memory per array.
+const MAX_TRADES = 50;
+
+// If you want minimal logs, set this to false or use a separate debug environment variable.
+const ENABLE_LOGS = false;
+
 function pumpFunListener(): void {
   const uri = "wss://frontend-api-v2.pump.fun/socket.io/?EIO=4&transport=websocket";
 
@@ -65,15 +72,15 @@ function pumpFunListener(): void {
     const ws = new WebSocket(uri);
 
     ws.on('open', () => {
-      console.log("Connected");
-      // Send the "40" message for authorization.
+      if (ENABLE_LOGS) console.log("Connected");
+      // Send the "40" message for Socket.IO authorization.
       ws.send("40");
     });
 
     ws.on('message', (data: RawData) => {
-      const message: string = typeof data === 'string' ? data : data.toString();
+      const message = typeof data === 'string' ? data : data.toString();
 
-      // Respond to pings.
+      // Respond to pings
       if (message === "2") {
         ws.send("3");
         return;
@@ -81,63 +88,75 @@ function pumpFunListener(): void {
 
       // Process messages that start with "42"
       if (message.startsWith("42")) {
+        // Attempt to parse the payload
         try {
           const payload = JSON.parse(message.substring(2));
           if (payload[0] === "tradeCreated") {
-            // Log the full raw payload for debugging
-            console.log("[RAW tradeCreated]:", payload[1]);
             const tradeData: TradeData = payload[1];
 
-            // Build a formatted log line (regardless of filtering)
-            const localTime = new Date(tradeData.timestamp * 1000).toLocaleString();
-            console.log(`User: ${tradeData.user} ${tradeData.is_buy ? 'Bought' : 'Sold'} ${tradeData.sol_amount / 1_000_000_000} SOL worth of ${tradeData.name} at ${localTime}`);
-
-            // Only store the trade if the user is in USER_MAP.
+            // Check if the user is recognized in our map
             if (!USER_MAP[tradeData.user]) {
+              // If logs are enabled, you could do a minimal log or skip entirely:
+              if (ENABLE_LOGS) {
+                console.log(`[SKIP] Unknown user: ${tradeData.user}`);
+              }
               return;
             }
 
-            // Build the trade event object.
-            const ts = new Date(tradeData.timestamp * 1000);
+            // Convert the trade into our simplified structure
             const event: TradeEvent = {
-              user: USER_MAP[tradeData.user],
-              sol_amount: (tradeData.sol_amount / 1_000_000_000).toFixed(4),
+              user: tradeData.user,  // keep raw address (friendly name can be used in UI)
+              sol_amount: tradeData.sol_amount / 1_000_000_000,
               name: tradeData.name,
-              timestamp: ts.toISOString().replace('T', ' ').substring(0, 19),
+              timestamp: tradeData.timestamp, // keep numeric
               mint: tradeData.mint || null,
               usd_market_cap: tradeData.usd_market_cap || null,
             };
 
-            // Categorize the trade based on is_buy.
+            // Insert into buy or sell array
             if (tradeData.is_buy) {
-              buy_events.unshift(event);
-              if (buy_events.length > 50) {
-                buy_events.pop();
+              buy_events.push(event);
+              // If we exceed MAX_TRADES, remove oldest
+              if (buy_events.length > MAX_TRADES) {
+                buy_events.shift();
               }
             } else {
-              sell_events.unshift(event);
-              if (sell_events.length > 50) {
-                sell_events.pop();
+              sell_events.push(event);
+              if (sell_events.length > MAX_TRADES) {
+                sell_events.shift();
               }
             }
-          } else {
+
+            if (ENABLE_LOGS) {
+              console.log(`[STORE] ${USER_MAP[tradeData.user]} ${tradeData.is_buy ? "BUY" : "SELL"}: ${event.sol_amount.toFixed(4)} SOL of ${event.name}`);
+            }
+
+          } else if (ENABLE_LOGS) {
             console.log("Unknown Response:", payload);
           }
-        } catch (e) {
-          console.log("Error parsing message:", e);
+        } catch (err) {
+          if (ENABLE_LOGS) {
+            console.log("Error parsing message:", err);
+          }
         }
-      } else {
+      } else if (ENABLE_LOGS) {
         console.log("Unknown message:", message);
       }
     });
 
+    // On close, attempt to reconnect
     ws.on('close', () => {
-      console.log("WebSocket connection closed. Reconnecting in 5 seconds...");
+      if (ENABLE_LOGS) {
+        console.log("WebSocket closed. Reconnecting in 5s...");
+      }
       setTimeout(connect, 5000);
     });
 
+    // On error, close and reconnect
     ws.on('error', (err: Error) => {
-      console.log("WebSocket error:", err);
+      if (ENABLE_LOGS) {
+        console.log("WebSocket error:", err);
+      }
       ws.close();
     });
   }
@@ -147,16 +166,20 @@ function pumpFunListener(): void {
 
 pumpFunListener();
 
+// Express server to serve the trades
 const app = express();
 
+// Return the last 20 trades from each array
 app.get('/api/trades', (req, res) => {
+  // If you need them in newest-first order, you can reverse or slice differently
+  // or let the front end handle ordering.
   res.json({
-    buys: buy_events.slice(0, 20),
-    sells: sell_events.slice(0, 20)
+    buys: buy_events.slice(-20),
+    sells: sell_events.slice(-20),
   });
 });
 
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`Web server running on port ${port}`);
 });
