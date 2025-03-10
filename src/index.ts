@@ -155,4 +155,41 @@ function connectToSocket(uri: string) {
 
     ws.on('error', (err: Error) => {
       if (ENABLE_LOGS) {
-        console.log(`[E
+        console.log(`[ERROR] WebSocket error on ${uri}:`, err);
+      }
+      ws.close();
+    });
+  }
+
+  connect();
+}
+
+/**
+ * Subscribes to both the v2 and v3 endpoints.
+ */
+function pumpFunListener() {
+  // Connect to v2
+  connectToSocket("wss://frontend-api-v2.pump.fun/socket.io/?EIO=4&transport=websocket");
+
+  // Connect to v3
+  connectToSocket("wss://frontend-api-v3.pump.fun/socket.io/?EIO=4&transport=websocket");
+}
+
+pumpFunListener();
+
+// Express server
+import express from 'express';
+const app = express();
+
+app.get('/api/trades', (req, res) => {
+  // Return last 20 trades from each array
+  res.json({
+    buys: buy_events.slice(-20),
+    sells: sell_events.slice(-20),
+  });
+});
+
+const port = process.env.PORT || 5000;
+app.listen(port, () => {
+  console.log(`[INFO] Web server running on port ${port}`);
+});
