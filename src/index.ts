@@ -45,7 +45,7 @@ const USER_MAP: { [address: string]: string } = {
 const buy_events: TradeEvent[] = [];
 const sell_events: TradeEvent[] = [];
 
-// This function connects to the pump.fun feed, listens for trade events, and processes them.
+// WebSocket listener function
 function pumpFunListener(): void {
   const uri = "wss://frontend-api-v2.pump.fun/socket.io/?EIO=4&transport=websocket";
 
@@ -54,7 +54,6 @@ function pumpFunListener(): void {
 
     ws.on('open', () => {
       console.log("Connected to pump.fun feed");
-      // Send "40" to authenticate
       ws.send("40");
     });
 
@@ -125,11 +124,8 @@ function pumpFunListener(): void {
   connect();
 }
 
-// Start the WebSocket listener immediately.
 pumpFunListener();
 
-// Set up an Express server that exposes the trades as JSON.
-import express from 'express';
 const app = express();
 
 app.get('/api/trades', (req, res) => {
