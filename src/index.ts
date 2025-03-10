@@ -50,13 +50,6 @@ const USER_MAP: { [address: string]: string } = {
   "8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6": "Cooker",
   "Gv7CnRo2L2SJ583XEfoKHKbmWK3wNoBDxVoJqMKJR4Nu": "Robo",
   "41uh7g1DxYaYXdtjBiYCHcgBniV9Wx57b7HU7RXmx1Gg": "Lowskii",
-  "DNfuF1L62WWyW3pNakVkyGGFzVVhj4Yr52jSmdTyeBHm": "Gake",
-  "CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o": "Cented",
-  "AJ6MGExeK7FXmeKkKPmALjcdXVStXYokYNv9uVfDRtvo": "Tim",
-  "6m5sW6EAPAHncxnzapi1ZVJNRb9RZHQ3Bj7FD84X9rAF": "ShockedJS",
-  "EaVboaPxFCYanjoNWdkxTbPvt57nhXGu5i6m9m6ZS2kK": "Danny",
-  "AbcX4XBm7DJ3i9p29i6sU8WLmiW4FWY5tiwB9D6UBbcE": "404Flipped",
-  "9yYya3F5EJoLnBNKW6z4bZvyQytMXzDcpU5D6yYr4jqL": "Loopierr",
 };
 
 const buy_events: TradeEvent[] = [];
@@ -90,14 +83,21 @@ function pumpFunListener(): void {
           const payload = JSON.parse(message.substring(2));
           if (payload[0] === "tradeCreated") {
             const tradeData: TradeData = payload[1];
+            
+            // Filter: Only process trades if the address is in USER_MAP.
+            if (!USER_MAP[tradeData.user]) {
+              console.log(`Skipped trade from unknown address: ${tradeData.user}`);
+              return;
+            }
+            
             console.log(tradeData);
-            // Print formatted trade data (mirroring Python output)
+            // Print formatted trade information similar to the Python version.
             console.log(`User: ${tradeData.user} ${tradeData.is_buy ? 'Bought' : 'Sold'} ${tradeData.sol_amount / 1000000000} SOL worth of ${tradeData.name} at ${new Date(tradeData.timestamp * 1000).toLocaleString()}`);
             
             // Build the trade event object.
             const ts = new Date(tradeData.timestamp * 1000);
             const event: TradeEvent = {
-              user: USER_MAP[tradeData.user] || tradeData.user,
+              user: USER_MAP[tradeData.user],
               sol_amount: (tradeData.sol_amount / 1000000000).toFixed(4),
               name: tradeData.name,
               timestamp: ts.toISOString().replace('T', ' ').substring(0, 19),
