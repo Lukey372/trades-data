@@ -96,11 +96,14 @@ async def pump_fun_listener():
                                 is_buy = trade_data["is_buy"]
                                 ts = datetime.fromtimestamp(trade_data["timestamp"])
 
+                                # Include 'mint' and 'usd_market_cap' if present
                                 event = {
                                     "user": friendly_user,
                                     "sol_amount": f"{sol_amount:.4f}",
                                     "name": coin_name,
-                                    "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S")
+                                    "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"),
+                                    "mint": trade_data.get("mint"),
+                                    "usd_market_cap": trade_data.get("usd_market_cap")
                                 }
 
                                 if is_buy:
@@ -112,7 +115,8 @@ async def pump_fun_listener():
                                     if len(sell_events) > 50:
                                         sell_events.pop()
 
-                                print(f"[Trade] {friendly_user} {'bought' if is_buy else 'sold'} {sol_amount:.4f} SOL of {coin_name}")
+                                print(f"[Trade] {friendly_user} "
+                                      f"{'bought' if is_buy else 'sold'} {sol_amount:.4f} SOL of {coin_name}")
                             else:
                                 print(f"Skipped trade from unknown address: {user_address}")
                         else:
@@ -144,6 +148,7 @@ app = Flask(__name__)
 def get_trades():
     """
     Returns the most recent buy and sell trades as JSON.
+    Each trade includes 'mint' and 'usd_market_cap' if present.
     """
     return jsonify({
         "buys": buy_events[:20],
@@ -158,6 +163,6 @@ if __name__ == "__main__":
     t = threading.Thread(target=run_listener_forever, daemon=True)
     t.start()
 
-    # Bind to the port provided by Render's PORT env variable, defaulting to 5000
+    # Bind to the port provided by Render’s PORT env variable, defaulting to 5000
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
