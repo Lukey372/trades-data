@@ -1,3 +1,4 @@
+import fetch from 'node-fetch'; // Ensure node-fetch is imported
 import {
   Connection,
   PublicKey,
@@ -16,6 +17,34 @@ const connection = new Connection(RPC_ENDPOINT);
 
 // Helius RPC endpoint (including your API key)
 const HELIUS_RPC_URL = process.env.HELIUS_RPC_URL || "https://mainnet.helius-rpc.com/?api-key=29217866-4f39-43ed-893f-d730d7cf295c";
+
+/**
+ * Query Dexscreener API for token details.
+ * Returns priceUsd and marketCap if available.
+ */
+async function fetchDexscreenerData(mintAddress: string): Promise<{ priceUsd: string, marketCap: number } | null> {
+  const url = `https://api.dexscreener.com/tokens/v1/solana/${mintAddress}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error(`Dexscreener API error: ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    // Assuming the API returns an array with one object
+    if (Array.isArray(data) && data.length > 0) {
+      const dexData = data[0];
+      return {
+        priceUsd: dexData.priceUsd,
+        marketCap: dexData.marketCap
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching Dexscreener data", error);
+    return null;
+  }
+}
 
 // Start polling for each tracked wallet
 export function startWalletTracker(): void {
@@ -61,7 +90,7 @@ async function pollWallet(walletAddress: string): Promise<void> {
     } catch (error) {
       console.error(`Error polling wallet ${walletAddress}:`, error);
     }
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 10000));
   }
 }
 
@@ -129,20 +158,23 @@ async function processTransaction(walletAddress: string, tx: ParsedTransactionWi
       displayedName = fetchedSymbol;
     }
 
+    // Query Dexscreener API for price and market cap data
+    const dexscreenerData = await fetchDexscreenerData(mintAddress);
+
     // Build a trade data object for our API
     const tradeData = {
       type: isBuy ? "buy" : "sell",
       wallet: walletInfo.name,
+      walletAddress: walletAddress,
       token: {
         name: displayedName,
         mint: mintAddress,
         change: tokenInfo ? tokenInfo.change : null
       },
       solChange: Math.abs(solChange),
-      transaction: {
-        signature: tx.transaction.signatures[0],
-        url: `${SOLSCAN_URL}${tx.transaction.signatures[0]}`
-      },
+      dexscreenerUrl: `https://dexscreener.com/solana/${mintAddress}`,
+      priceUsd: dexscreenerData ? dexscreenerData.priceUsd : null,
+      marketCap: dexscreenerData ? dexscreenerData.marketCap : null,
       timestamp: new Date().toISOString()
     };
 
