@@ -33,5 +33,14 @@ export const walletConfig: { [walletAddress: string]: WalletInfo } = {
   "Gv7CnRo2L2SJ583XEfoKHKbmWK3wNoBDxVoJqMKJR4Nu": { name: "Robo" },
   "41uh7g1DxYaYXdtjBiYCHcgBniV9Wx57b7HU7RXmx1Gg": { name: "Lowskii" },
   "99i9uVA7Q56bY22ajKKUfTZTgTeP5yCtVGsrG9J4pDYQ": { name: "Zrool" },
-  "9yYya3F5EJoLnBNKW6z4bZvyQytMXzDcpU5D6yYr4jqL": { name: "Loopier" }
+  "9yYya3F5EJoLnBNKW6z4bZvyQytMXzDcpU5D6yYr4jqL": { name: "Loopier" },
+  "8zFZHuSRuDpuAR7J6FzwyF3vKNx4CVW3DFHJerQhc7Zd": { name: "POW" },
+  "BCagckXeMChUKrHEd6fKFA1uiWDtcmCXMsqaheLiUPJd": { name: "DV" },
+  "AJ6MGExeK7FXmeKkKPmALjcdXVStXYokYNv9uVfDRtvo": { name: "Tim" },
+  "86AEJExyjeNNgcp7GrAvCXTDicf5aGWgoERbXFiG1EdD": { name: "Publix" },
+  "96sErVjEN7LNJ6Uvj63bdRWZxNuBngj56fnT9biHLKBf": { name: "Orange" },
+  "m7Kaas3Kd8FHLnCioSjCoSuVDReZ6FDNBVM6HTNYuF7": {name: "Ferb" },
+  "GJA1HEbxGnqBhBifH9uQauzXSB53to5rhDrzmKxhSU65": {name: "Latuche" },
+  
+  
 };
