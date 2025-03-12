@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { createClient } from 'redis';
 import { startWalletTracker } from './tracker';
 
@@ -14,6 +15,20 @@ const REDIS_PASSWORD = process.env.REDIS_PASSWORD || 'AfAPAAIjcDE4NjkyNTI4YzFjN2
 const REDIS_URL = process.env.REDIS_URL || `rediss://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}`;
 
 app.use(express.json());
+
+
+// Whitelist specific domains
+const allowedOrigins = [
+  'https://tilt.wtf',
+  'https://frontend-gamma-six-35.vercel.app'
+];
+
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
+
 
 // Create and connect a Redis client with TLS/SSL enabled and password
 const redisClient = createClient({
