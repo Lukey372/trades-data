@@ -19,7 +19,7 @@ app.use(express.json());
 
 // Whitelist specific domains
 const allowedOrigins = [
-  'https://tilt.wtf',
+  'https://www.tilt.wtf',
   'https://frontend-gamma-six-35.vercel.app'
 ];
 
