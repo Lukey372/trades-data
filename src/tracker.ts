@@ -16,7 +16,7 @@ const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-mainnet.g.alche
 const connection = new Connection(RPC_ENDPOINT);
 
 // Helius RPC endpoint (including your API key)
-const HELIUS_RPC_URL = process.env.HELIUS_RPC_URL || "https://mainnet.helius-rpc.com/?api-key=29217866-4f39-43ed-893f-d730d7cf295c";
+const HELIUS_RPC_URL = process.env.HELIUS_RPC_URL || "https://solana-mainnet.g.alchemy.com/v2/avjqC3geUsKYrVWrDdrxr6LaKcFAvvAQ";
 
 /**
  * Query Dexscreener API for token details.
