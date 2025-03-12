@@ -15,7 +15,7 @@ const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-mainnet.g.alche
 const connection = new Connection(RPC_ENDPOINT);
 
 // Helius RPC endpoint (including your API key)
-const HELIUS_RPC_URL = process.env.HELIUS_RPC_URL || "https://mainnet.helius-rpc.com/?api-key=29217866-4f39-43ed-893f-d730d7cf295c";
+const HELIUS_RPC_URL = process.env.HELIUS_RPC_URL || "https://lb.drpc.org/ogrpc?network=solana&dkey=AkYT4H_CkkdZk6XMwVLfQb80eMae_gQR76DynqSgS7QB";
 
 // Start polling for each tracked wallet
 export function startWalletTracker(): void {
