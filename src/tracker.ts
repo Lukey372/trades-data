@@ -11,7 +11,7 @@ import { sendTradeData } from './tradeDataSender';
 
 const SOLSCAN_URL = "https://solscan.io/tx/";
 // Set your RPC endpoint for your connection
-const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://lb.drpc.org/ogrpc?network=solana&dkey=AkYT4H_CkkdZk6XMwVLfQb80eMae_gQR76DynqSgS7QB";
+const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-mainnet.g.alchemy.com/v2/avjqC3geUsKYrVWrDdrxr6LaKcFAvvAQ";
 const connection = new Connection(RPC_ENDPOINT);
 
 // Helius RPC endpoint (including your API key)
