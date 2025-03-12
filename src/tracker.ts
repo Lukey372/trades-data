@@ -61,7 +61,7 @@ async function pollWallet(walletAddress: string): Promise<void> {
     } catch (error) {
       console.error(`Error polling wallet ${walletAddress}:`, error);
     }
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 }
 
