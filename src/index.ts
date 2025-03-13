@@ -16,7 +16,6 @@ const REDIS_URL = process.env.REDIS_URL || `rediss://:${REDIS_PASSWORD}@${REDIS_
 
 app.use(express.json());
 
-
 // Whitelist specific domains
 const allowedOrigins = [
   'https://www.tilt.wtf',
@@ -28,7 +27,6 @@ app.use(cors({
   methods: ['GET', 'POST'],
   credentials: true
 }));
-
 
 // Create and connect a Redis client with TLS/SSL enabled and password
 const redisClient = createClient({
@@ -65,14 +63,24 @@ app.post('/api/trades', async (req, res) => {
   }
 });
 
-// GET endpoint: retrieves all stored trade data from Redis
+// GET endpoint: retrieves the latest 10 buys and 10 sells stored in Redis
 app.get('/api/trades', async (_req, res) => {
   try {
     // Retrieve all elements from the "trades" list
     const trades = await redisClient.lRange('trades', 0, -1);
     // Convert JSON strings back to objects
     const parsedTrades = trades.map((trade) => JSON.parse(trade));
-    res.json(parsedTrades);
+
+    // Filter the trades by type
+    const buys = parsedTrades.filter((trade) => trade.type === 'buy');
+    const sells = parsedTrades.filter((trade) => trade.type === 'sell');
+
+    // Since trades are stored oldest first, slice the last 10 elements for each type,
+    // then reverse them so that the newest trades are first.
+    const latestBuys = buys.slice(-10).reverse();
+    const latestSells = sells.slice(-10).reverse();
+
+    res.json({ buys: latestBuys, sells: latestSells });
   } catch (err) {
     console.error('Error retrieving trade data from Redis:', err);
     res.status(500).json({ error: 'Failed to retrieve trade data.' });
