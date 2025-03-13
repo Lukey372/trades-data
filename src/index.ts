@@ -49,13 +49,20 @@ redisClient.on('error', (err) => console.error('Redis Client Error', err));
   }
 })();
 
-// POST endpoint: receives trade data from the tracker and stores it in Redis
+// POST endpoint: receives trade data from the tracker and stores it in separate Redis lists
 app.post('/api/trades', async (req, res) => {
   const tradeData = req.body;
   console.log('Received trade data:', tradeData);
   try {
-    // Store trade data as a JSON string in a Redis list named "trades"
-    await redisClient.rPush('trades', JSON.stringify(tradeData));
+    // Determine which list to push the trade to based on its type
+    const key = tradeData.type === 'buy' ? 'trades:buys' : 'trades:sells';
+    
+    // Store trade data as a JSON string in the appropriate Redis list
+    await redisClient.rPush(key, JSON.stringify(tradeData));
+    
+    // Optionally, trim the list to a maximum of 100 items (or any limit you choose)
+    await redisClient.lTrim(key, -100, -1);
+    
     res.status(200).json({ message: 'Trade data received successfully.' });
   } catch (err) {
     console.error('Error saving trade data to Redis:', err);
@@ -63,23 +70,21 @@ app.post('/api/trades', async (req, res) => {
   }
 });
 
-// GET endpoint: retrieves the latest 10 buys and 10 sells stored in Redis
+// GET endpoint: retrieves the latest 10 buys and 10 sells from their respective Redis lists
 app.get('/api/trades', async (_req, res) => {
   try {
-    // Retrieve all elements from the "trades" list
-    const trades = await redisClient.lRange('trades', 0, -1);
-    // Convert JSON strings back to objects
-    const parsedTrades = trades.map((trade) => JSON.parse(trade));
-
-    // Filter the trades by type
-    const buys = parsedTrades.filter((trade) => trade.type === 'buy');
-    const sells = parsedTrades.filter((trade) => trade.type === 'sell');
-
-    // Since trades are stored oldest first, slice the last 10 elements for each type,
-    // then reverse them so that the newest trades are first.
+    // Retrieve the data from the separate lists
+    const buysRaw = await redisClient.lRange('trades:buys', 0, -1);
+    const sellsRaw = await redisClient.lRange('trades:sells', 0, -1);
+    
+    // Parse the JSON strings back into objects
+    const buys = buysRaw.map(trade => JSON.parse(trade));
+    const sells = sellsRaw.map(trade => JSON.parse(trade));
+    
+    // Since the lists are stored oldest first, slice the last 10 entries and reverse to get the newest first
     const latestBuys = buys.slice(-10).reverse();
     const latestSells = sells.slice(-10).reverse();
-
+    
     res.json({ buys: latestBuys, sells: latestSells });
   } catch (err) {
     console.error('Error retrieving trade data from Redis:', err);
