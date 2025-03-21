@@ -5,7 +5,7 @@ import { sendTradeData } from './tradeDataSender';
 import { dexscreenerRateLimiter, solanaRpcRateLimiter } from './rateLimit';
 
 const SOLSCAN_URL = "https://solscan.io/tx/";
-const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-mainnet.g.alchemy.com/v2/IK5lnC5WolkFNY5M5qr8AAvEdh_e3Z1e";
+const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-mainnet.g.alchemy.com/v2/avjqC3geUsKYrVWrDdrxr6LaKcFAvvAQ";
 const connection = new Connection(RPC_ENDPOINT);
 const HELIUS_RPC_URL = process.env.HELIUS_RPC_URL || "https://mainnet.helius-rpc.com/?api-key=29217866-4f39-43ed-893f-d730d7cf295c";
 
@@ -40,7 +40,7 @@ export function startWalletTracker(): void {
   wallets.forEach((wallet, index) => {
     setTimeout(() => {
       pollWallet(wallet);
-    }, index * 1000); // Start each wallet 1 second apart
+    }, index * 2000); // Start each wallet 2 seconds apart
   });
 }
 
@@ -51,23 +51,31 @@ async function pollWallet(walletAddress: string): Promise<void> {
   while (true) {
     try {
       await solanaRpcRateLimiter.execute(async () => {
-        const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 5 });
+        // Only fetch 3 signatures at a time to reduce load
+        const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 3 });
         
         if (signatures.length > 0) {
           const latestSignature = signatures[0].signature;
 
           if (lastSignature !== latestSignature) {
-            // Process each new signature individually
+            // Process each signature one at a time
             for (const sigInfo of signatures) {
               if (sigInfo.signature === lastSignature) break;
-              
-              // Get single transaction
-              const tx = await connection.getParsedTransaction(sigInfo.signature, {
-                maxSupportedTransactionVersion: 0
-              });
 
-              if (tx) {
-                await processTransaction(walletAddress, tx);
+              try {
+                // Add delay between transaction fetches
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                const tx = await connection.getParsedTransaction(sigInfo.signature, {
+                  maxSupportedTransactionVersion: 0
+                });
+
+                if (tx) {
+                  await processTransaction(walletAddress, tx);
+                }
+              } catch (txError) {
+                console.error(`Error processing transaction ${sigInfo.signature}:`, txError);
+                continue;
               }
             }
             lastSignature = latestSignature;
@@ -77,7 +85,8 @@ async function pollWallet(walletAddress: string): Promise<void> {
     } catch (error) {
       console.error(`Error polling wallet ${walletAddress}:`, error);
     }
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    // Increase polling interval to reduce API load
+    await new Promise(resolve => setTimeout(resolve, 15000));
   }
 }
 
@@ -128,32 +137,41 @@ async function processTransaction(walletAddress: string, tx: ParsedTransactionWi
       return;
     }
 
-    const [displayedName, dexscreenerData] = await Promise.all([
-      getTokenSymbol(tokenInfo.mint),
-      fetchDexscreenerData(tokenInfo.mint)
-    ]);
+    try {
+      const [displayedName, dexscreenerData] = await Promise.all([
+        getTokenSymbol(tokenInfo.mint),
+        fetchDexscreenerData(tokenInfo.mint)
+      ]);
 
-    const tradeData = {
-      type: isBuy ? "buy" : "sell",
-      wallet: walletInfo.name,
-      walletAddress: walletAddress,
-      token: {
-        name: displayedName,
-        mint: tokenInfo.mint,
-        change: tokenInfo.change
-      },
-      solChange: Math.abs(solChange),
-      dexscreenerUrl: `https://dexscreener.com/solana/${tokenInfo.mint}`,
-      priceUsd: dexscreenerData ? dexscreenerData.priceUsd : null,
-      marketCap: dexscreenerData ? dexscreenerData.marketCap : null,
-      timestamp: new Date().toISOString()
-    };
+      const tradeData = {
+        type: isBuy ? "buy" : "sell",
+        wallet: walletInfo.name,
+        walletAddress: walletAddress,
+        token: {
+          name: displayedName,
+          mint: tokenInfo.mint,
+          change: tokenInfo.change
+        },
+        solChange: Math.abs(solChange),
+        dexscreenerUrl: `https://dexscreener.com/solana/${tokenInfo.mint}`,
+        priceUsd: dexscreenerData ? dexscreenerData.priceUsd : null,
+        marketCap: dexscreenerData ? dexscreenerData.marketCap : null,
+        timestamp: new Date().toISOString()
+      };
 
-    await sendTradeData(tradeData);
+      await sendTradeData(tradeData);
+    } catch (error) {
+      console.error(`Error processing trade data for ${tokenInfo.mint}:`, error);
+    }
   }
 }
 
 async function getTokenSymbol(mintAddress: string): Promise<string> {
-  const symbol = await getFungibleTokenSymbol(mintAddress, HELIUS_RPC_URL);
-  return symbol || mintAddress;
+  try {
+    const symbol = await getFungibleTokenSymbol(mintAddress, HELIUS_RPC_URL);
+    return symbol || mintAddress;
+  } catch (error) {
+    console.error(`Error fetching token symbol for ${mintAddress}:`, error);
+    return mintAddress;
+  }
 }
