@@ -5,7 +5,7 @@ import { sendTradeData } from './tradeDataSender';
 import { dexscreenerRateLimiter, solanaRpcRateLimiter } from './rateLimit';
 
 const SOLSCAN_URL = "https://solscan.io/tx/";
-const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-mainnet.g.alchemy.com/v2/avjqC3geUsKYrVWrDdrxr6LaKcFAvvAQ";
+const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-mainnet.g.alchemy.com/v2/IK5lnC5WolkFNY5M5qr8AAvEdh_e3Z1e";
 const connection = new Connection(RPC_ENDPOINT);
 const HELIUS_RPC_URL = process.env.HELIUS_RPC_URL || "https://mainnet.helius-rpc.com/?api-key=29217866-4f39-43ed-893f-d730d7cf295c";
 
