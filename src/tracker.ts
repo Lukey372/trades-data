@@ -9,10 +9,6 @@ const RPC_ENDPOINT = process.env.RPC_ENDPOINT || "https://solana-mainnet.g.alche
 const connection = new Connection(RPC_ENDPOINT);
 const HELIUS_RPC_URL = process.env.HELIUS_RPC_URL || "https://mainnet.helius-rpc.com/?api-key=29217866-4f39-43ed-893f-d730d7cf295c";
 
-// Cache for token symbols to reduce API calls
-const tokenSymbolCache = new Map<string, string>();
-const TOKEN_CACHE_DURATION = 1000 * 60 * 60; // 1 hour
-
 async function fetchDexscreenerData(mintAddress: string) {
   return dexscreenerRateLimiter.execute(async () => {
     const url = `https://api.dexscreener.com/tokens/v1/solana/${mintAddress}`;
@@ -38,20 +34,6 @@ async function fetchDexscreenerData(mintAddress: string) {
   });
 }
 
-async function getTokenSymbol(mintAddress: string): Promise<string> {
-  // Check cache first
-  const cached = tokenSymbolCache.get(mintAddress);
-  if (cached) return cached;
-
-  const symbol = await getFungibleTokenSymbol(mintAddress, HELIUS_RPC_URL);
-  if (symbol) {
-    tokenSymbolCache.set(mintAddress, symbol);
-    // Clear cache after duration
-    setTimeout(() => tokenSymbolCache.delete(mintAddress), TOKEN_CACHE_DURATION);
-  }
-  return symbol || mintAddress;
-}
-
 export function startWalletTracker(): void {
   const wallets = Object.keys(walletConfig);
   // Stagger wallet polling to avoid overwhelming the RPC
@@ -75,17 +57,15 @@ async function pollWallet(walletAddress: string): Promise<void> {
           const latestSignature = signatures[0].signature;
 
           if (lastSignature !== latestSignature) {
-            const newSignatures = [];
+            // Process each new signature individually
             for (const sigInfo of signatures) {
               if (sigInfo.signature === lastSignature) break;
-              newSignatures.push(sigInfo.signature);
-            }
+              
+              // Get single transaction
+              const tx = await connection.getParsedTransaction(sigInfo.signature, {
+                maxSupportedTransactionVersion: 0
+              });
 
-            const txs = await connection.getParsedTransactions(newSignatures, {
-              maxSupportedTransactionVersion: 0
-            });
-
-            for (const tx of txs) {
               if (tx) {
                 await processTransaction(walletAddress, tx);
               }
@@ -171,4 +151,9 @@ async function processTransaction(walletAddress: string, tx: ParsedTransactionWi
 
     await sendTradeData(tradeData);
   }
+}
+
+async function getTokenSymbol(mintAddress: string): Promise<string> {
+  const symbol = await getFungibleTokenSymbol(mintAddress, HELIUS_RPC_URL);
+  return symbol || mintAddress;
 }
